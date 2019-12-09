@@ -79,7 +79,7 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
 
                 if country != 'xx':
                     r.zincrby('hanayo:country_list', country, 1)
-                    r.zadd(f'ripple:{"relax" if relax else "leader"}board:{gamemode}:{country}', userID, pp)
+                    r.zadd(f'ripple:leaderboard{"_relax" if relax}:{gamemode}:{country}', userID, pp)
 
     print(f'{GREEN}-> Successfully completed rank calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     return True
@@ -111,25 +111,22 @@ def removeExpiredDonorTags(): # Remove supporter tags from users who no longer h
     for user in expired_donors:
         donor_type = user[2] & 8388608
 
-        print(f"Removing {user[1]}'{'s' if user[1][-1] != 's' else ''} expired {'Premium' if donor_type else 'Supporter'} tag.")
+        print(f"Removing {user[1]}'{'s' if user[1][-1] != 's' else ''} expired Supporter tag.")
 
-        if donor_type:
-           SQL.execute('UPDATE users SET privileges = privileges - 8388612 WHERE id = %s', [user[0]])
-        else:
-           SQL.execute('UPDATE users SET privileges = privileges - 4 WHERE id = %s', [user[0]])
+        SQL.execute('UPDATE users SET privileges = privileges - 4 WHERE id = %s', [user[0]])
 
-        SQL.execute('SELECT id FROM user_badges WHERE badge IN (59, 36) AND user = %s', [user[0]])
+        SQL.execute('SELECT id FROM user_badges WHERE badge IN (1002) AND user = %s', [user[0]])
 
         for badge in SQL.fetchall():
             SQL.execute('DELETE FROM user_badges WHERE id = %s', [badge[0]])
 
     # Grab a count of the expired badges to print.
     # TODO: make this use SQL.rowcount or w/e its called. I know it exists.
-    SQL.execute('SELECT COUNT(*) FROM user_badges LEFT JOIN users ON user_badges.user = users.id WHERE user_badges.badge in (59, 36) AND users.donor_expire < %s', [int(time.time())])
+    SQL.execute('SELECT COUNT(*) FROM user_badges LEFT JOIN users ON user_badges.user = users.id WHERE user_badges.badge in (100) AND users.donor_expire < %s', [int(time.time())])
     expired_badges = SQL.fetchone()[0]
 
     # Wipe expired badges.
-    SQL.execute('DELETE user_badges FROM user_badges LEFT JOIN users ON user_badges.user = users.id WHERE user_badges.badge in (59, 36) AND users.donor_expire < %s', [int(time.time())])
+    SQL.execute('DELETE user_badges FROM user_badges LEFT JOIN users ON user_badges.user = users.id WHERE user_badges.badge in (100) AND users.donor_expire < %s', [int(time.time())])
 
     print(f'{GREEN}-> Successfully cleaned {len(expired_donors)} expired donor tags and {expired_badges} expired badges.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     return True
@@ -152,8 +149,8 @@ def calculateScorePlaycount():
     SQL.execute('SELECT id FROM users WHERE privileges & 1 ORDER BY id ASC')
     users = SQL.fetchall()
 
-    for akatsuki_mode in [['users', ''], ['rx', '_relax']]:
-        print(f'Calculating {"Relax" if akatsuki_mode[1] else "Vanilla"}.')
+    for ainu_mode in [['users', ''], ['rx', '_relax']]:
+        print(f'Calculating {"Relax" if ainu_mode[1] else "Vanilla"}.')
 
         for game_mode in [['std', '0'], ['taiko', '1'], ['ctb', '2'], ['mania', '3']]:
             print(f'Mode: {game_mode[0]}')
@@ -163,13 +160,13 @@ def calculateScorePlaycount():
 
                 # Get every score the user has ever submitted.
                 # .format sql queries hahahahah fuck you i don't care
-                SQL.execute('''SELECT scores{akatsuki_mode}.score, scores{akatsuki_mode}.completed, beatmaps.ranked
-                               FROM scores{akatsuki_mode}
-                               LEFT JOIN beatmaps ON scores{akatsuki_mode}.beatmap_md5 = beatmaps.beatmap_md5
+                SQL.execute('''SELECT scores{ainu_mode}.score, scores{ainu_mode}.completed, beatmaps.ranked
+                               FROM scores{ainu_mode}
+                               LEFT JOIN beatmaps ON scores{ainu_mode}.beatmap_md5 = beatmaps.beatmap_md5
                                WHERE
-                                scores{akatsuki_mode}.userid = %s AND
-                                scores{akatsuki_mode}.play_mode = {game_mode}
-                               '''.format(akatsuki_mode=akatsuki_mode[1], game_mode=game_mode[1]), [user[0]])
+                                scores{ainu_mode}.userid = %s AND
+                                scores{ainu_mode}.play_mode = {game_mode}
+                               '''.format(ainu_mode=ainu_mode[1], game_mode=game_mode[1]), [user[0]])
 
                 # Iterate through every score, appending ranked and total score, along with playcount.
                 for score, completed, ranked in SQL.fetchall():
@@ -181,10 +178,10 @@ def calculateScorePlaycount():
                     playcount += 1
 
                 # Score and playcount calculations complete, insert into DB.
-                SQL.execute('''UPDATE {akatsuki_mode}_stats
+                SQL.execute('''UPDATE {ainu_mode}_stats
                                SET total_score_{game_mode} = %s, ranked_score_{game_mode} = %s, playcount_{game_mode} = %s
                                WHERE id = %s'''.format(
-                                   akatsuki_mode=akatsuki_mode[0],
+                                   ainu_mode=ainu_mode[0],
                                    game_mode=game_mode[0]
                                 ), [total_score, ranked_score, playcount, user[0]]
                             )
@@ -194,7 +191,7 @@ def calculateScorePlaycount():
 
 
 if __name__ == '__main__':
-    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}")
+    print(f"{CYAN}Akatsuki's cron but I forked them xd - v{VERSION}.{ENDC}")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
     # lol this is cursed code right here

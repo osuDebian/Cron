@@ -7,7 +7,7 @@ import os
 import sys
 
 # Akatsuki-cron-py version number.
-VERSION = 1.28
+VERSION = 1.29
 
 # Console colours
 CYAN		= '\033[96m'
@@ -61,7 +61,10 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
     print(f'{CYAN}-> Calculating ranks for all users in all gamemodes.{ENDC}')
     t_start = time.time()
 
-    r.flushall() # Flush current set (removes restricted players).
+    # do not flush as it'll break "Online Users" on hanayo.
+    # r.flushall() # Flush current set (removes restricted players).
+    r.delete(r.keys("ripple:leaderboard:*"))
+    r.delete(r.keys("ripple:relaxboard:*"))
 
     for relax in range(2):
         print(f'Calculating {"Relax" if relax else "Vanilla"}.')
@@ -69,14 +72,19 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
             print(f'Mode: {gamemode}')
 
             if relax:
-                SQL.execute('SELECT rx_stats.id, rx_stats.pp_{gm}, rx_stats.country FROM rx_stats LEFT JOIN users ON users.id = rx_stats.id WHERE rx_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
+                SQL.execute('SELECT rx_stats.id, rx_stats.pp_{gm}, rx_stats.country, users.latest_activity FROM rx_stats LEFT JOIN users ON users.id = rx_stats.id WHERE rx_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
             else:
-                SQL.execute('SELECT users_stats.id, users_stats.pp_{gm}, users_stats.country FROM users_stats LEFT JOIN users ON users.id = users_stats.id WHERE users_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
+                SQL.execute('SELECT users_stats.id, users_stats.pp_{gm}, users_stats.country, users.latest_activity FROM users_stats LEFT JOIN users ON users.id = users_stats.id WHERE users_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
 
+            currentTime = int(time.time())
             for row in SQL.fetchall():
-                userID  = int(row[0])
-                pp      = float(row[1])
-                country = row[2].lower()
+                userID       = int(row[0])
+                pp           = float(row[1])
+                country      = row[2].lower()
+                daysInactive = (currentTime - int(row[3])) / 60 / 60 / 24
+                
+                if daysInactive > 60:
+                    continue
 
                 if relax:
                     r.zadd(f'ripple:leaderboard_relax:{gamemode}', userID, pp)

@@ -71,14 +71,10 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
         for gamemode in ['std', 'taiko', 'ctb', 'mania']:
             print(f'Mode: {gamemode}')
 
-<<<<<<< HEAD
             if relax:
                 SQL.execute('SELECT rx_stats.id, rx_stats.pp_{gm}, rx_stats.country, users.latest_activity FROM rx_stats LEFT JOIN users ON users.id = rx_stats.id WHERE rx_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
             else:
                 SQL.execute('SELECT users_stats.id, users_stats.pp_{gm}, users_stats.country, users.latest_activity FROM users_stats LEFT JOIN users ON users.id = users_stats.id WHERE users_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
-=======
-            SQL.execute('SELECT {rx}_stats.id, {rx}_stats.pp_{gm}, {rx}_stats.country, users.latest_activity FROM {rx}_stats LEFT JOIN users ON users.id = {rx}_stats.id WHERE {rx}_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(rx='rx' if relax else 'users', gm=gamemode))
->>>>>>> 812eb4b83e052c20c5d31fee9663db090736f880
 
             currentTime = int(time.time())
             for row in SQL.fetchall():
@@ -90,14 +86,10 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
                 if daysInactive > 60:
                     continue
 
-<<<<<<< HEAD
                 if relax:
                     r.zadd(f'ripple:leaderboard_relax:{gamemode}', userID, pp)
                 else:
                     r.zadd(f'ripple:leaderboard:{gamemode}', userID, pp)
-=======
-                r.zadd(f'ripple:{"relax" if relax else "leader"}board:{gamemode}', userID, pp)
->>>>>>> 812eb4b83e052c20c5d31fee9663db090736f880
 
                 if country != 'xx':
                     r.zincrby('hanayo:country_list', country, 1)

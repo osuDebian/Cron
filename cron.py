@@ -17,7 +17,7 @@ GREEN 		= '\033[92m'
 RED 		= '\033[91m'
 ENDC 		= '\033[0m'
 
-SQL_HOST, SQL_USER, SQL_PASS, SQL_DB = [None] * 4
+SQL_HOST, SQL_USER, SQL_PASS, SQL_DB, REDIS_HOST, REDIS_PORT, REDIS_PASS, REDIS_DB = [None] * 8
 with open(f'{os.path.dirname(os.path.realpath(__file__))}/config.ini', 'r') as f:
     conf_data = f.read().splitlines()
 
@@ -31,6 +31,10 @@ for _line in conf_data:
     elif key == 'SQL_USER': SQL_USER = val # Username for SQL.
     elif key == 'SQL_PASS': SQL_PASS = val # Password for SQL.
     elif key == 'SQL_DB': SQL_DB = val # DB name for SQL.
+    elif key == 'REDIS_HOST': REDIS_HOST = val # IP Address for REDIS.
+    elif key == 'REDIS_PORT': REDIS_PORT = val # Port for REDIS.
+    elif key == 'REDIS_PASS': REDIS_PASS = val # Password for REDIS.
+    elif key == 'REDIS_DB': REDIS_DB = val # DB id for REDIS.
 
 if any(not i for i in [SQL_HOST, SQL_USER, SQL_PASS, SQL_DB]):
     raise Exception('Not all required configuration values could be found (SQL_HOST, SQL_USER, SQL_PASS, SQL_DB).')
@@ -55,7 +59,70 @@ else:
 if not SQL: raise Exception('Could not connect to SQL.')
 
 # Redis
-r = redis.Redis(host='localhost', port=6379, db=0)
+if len(REDIS_PASS) < 1:
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+else:
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, password=REDIS_PASS)
+
+
+def convertMode(mode):
+    if mode == "std":
+        return 0
+    elif mode == "taiko":
+        return 1
+    elif mode == "ctb":
+        return 2
+    elif mode == "mania":
+        return 3
+    else:
+        return 0
+
+
+def calculatePP(): # Calculate PPs based off users score db.
+    print(f'{CYAN}-> Calculating Performance Points for all users in all gamemodes.{ENDC}')
+    t_start = time.time()
+
+    for relax in range(2):
+        print(f'Calculating {"Relax" if relax else "Vanilla"}.')
+        for gamemode in ['std', 'taiko', 'ctb', 'mania']:
+            print(f'Mode: {gamemode}')
+
+            SQL.execute('SELECT id, latest_activity FROM users WHERE privileges & 1 and id != 999;')
+            currentTime = int(time.time())
+            for row in SQL.fetchall():
+                userID = int(row[0])
+                daysInactive = (currentTime - int(row[1])) / 60 / 60 / 24
+                
+                if daysInactive > 60:
+                    continue
+                
+                m = convertMode(gamemode)
+                sql = "select sum(ROUND(ROUND(DD.pp) * pow(0.95,  (@num1 := @num1+1)))) as pp from( SELECT userid,pp,(curdate() - interval 60 day) as time FROM scores"
+                if relax:
+                    sql += "_relax"
+                sql += f" LEFT JOIN(beatmaps) USING(beatmap_id) WHERE userid = {userID} AND play_mode = {m} AND completed = 3 AND ranked >= 2 ORDER BY pp DESC LIMIT 500 ) as DD, (select @num1 := -1) TMP1;"
+
+                SQL.execute(sql)
+                PPDATA = SQL.fetchone()
+
+                if PPDATA is None or PPDATA[0] is None:
+                    continue
+
+                sql_update = "update "
+                if relax:
+                    sql_update += f"rx_stats set pp_{gamemode} = {PPDATA[0]} where id = {userID}"
+                    SQL.execute(f"select pp_{gamemode} from rx_stats where id = {userID}")
+                else:
+                    sql_update += f"users_stats set pp_{gamemode} = {PPDATA[0]} where id = {userID}"
+                    SQL.execute(f"select pp_{gamemode} from users_stats where id = {userID}")
+                BEFORE_PP = SQL.fetchone()[0]
+
+                print(f"    Calculate Done. UID[{userID}] {BEFORE_PP}pp > {PPDATA[0]}pp")
+
+                SQL.execute(sql_update)
+
+    print(f'{GREEN}-> Successfully completed Performance points calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    return True
 
 def calculateRanks(): # Calculate hanayo ranks based off db pp values.
     print(f'{CYAN}-> Calculating ranks for all users in all gamemodes.{ENDC}')
@@ -207,14 +274,14 @@ def calculateScorePlaycount():
 
 
 if __name__ == '__main__':
-    print(f"{CYAN}Akatsuki's cron but I forked them xd - v{VERSION}.{ENDC}")
+    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nosu!thailand Forked And osu!Debian Forked")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
-    # lol this is cursed code right here
-    if calculateRanks(): print()
-    if updateTotalScores(): print()
-    if removeExpiredDonorTags(): print()
-    if addSupporterBadges(): print()
+    if calculatePP(): print()
+    if calculateRanks(): print()   
+    if updateTotalScores(): print()    
+    if removeExpiredDonorTags(): print()   
+    if addSupporterBadges(): print()   
     if intensive and calculateScorePlaycount(): print()
 
     print(f'{GREEN}-> Cronjob execution completed.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')

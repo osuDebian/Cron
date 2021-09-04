@@ -274,7 +274,7 @@ def calculateScorePlaycount():
 
 
 if __name__ == '__main__':
-    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nosu!thailand Forked And osu!Debian Forked")
+    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nosu!thailand forked osu!Debian forked -> forkforked LUL :D")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
     if calculatePP(): print()

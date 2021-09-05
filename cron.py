@@ -103,24 +103,26 @@ def calculatePP(): # Calculate PPs based off users score db.
                 sql += f" LEFT JOIN(beatmaps) USING(beatmap_id) WHERE userid = {userID} AND play_mode = {m} AND completed = 3 AND ranked >= 2 ORDER BY pp DESC LIMIT 500 ) as DD, (select @num1 := -1) TMP1;"
 
                 SQL.execute(sql)
-                PPDATA = SQL.fetchone()
+                NEWPP = SQL.fetchone()[0]
 
-                if PPDATA is None or PPDATA[0] is None:
+                if NEWPP is None:
                     continue
 
                 sql_update = "update "
                 if relax:
-                    sql_update += f"rx_stats set pp_{gamemode} = {PPDATA[0]} where id = {userID}"
+                    sql_update += f"rx_stats set pp_{gamemode} = {NEWPP} where id = {userID}"
                     SQL.execute(f"select pp_{gamemode} from rx_stats where id = {userID}")
                 else:
-                    sql_update += f"users_stats set pp_{gamemode} = {PPDATA[0]} where id = {userID}"
+                    sql_update += f"users_stats set pp_{gamemode} = {NEWPP} where id = {userID}"
                     SQL.execute(f"select pp_{gamemode} from users_stats where id = {userID}")
                 BEFORE_PP = SQL.fetchone()[0]
 
-                print(f"    Calculate Done. UID[{userID}] {BEFORE_PP}pp > {PPDATA[0]}pp")
-
                 SQL.execute(sql_update)
 
+                if (NEWPP - BEFORE_PP) > 0:
+                    print(f"    Calculate Done. UID[{userID}] {YELLOW}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
+                else:
+                    print(f"    Calculate Done. UID[{userID}] {BEFORE_PP}pp => {NEWPP}pp")
     print(f'{GREEN}-> Successfully completed Performance points calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     return True
 
@@ -274,7 +276,7 @@ def calculateScorePlaycount():
 
 
 if __name__ == '__main__':
-    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nosu!thailand forked osu!Debian forked -> forkforked LUL :D")
+    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nDebian Forked that osu!thailand fork Akatsuki. SO..... it is forkforked LUL :D SRY.")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
     if calculatePP(): print()

@@ -78,14 +78,17 @@ def convertMode(mode):
         return 0
 
 
-def calculatePP(): # Calculate PPs based off users score db.
-    print(f'{CYAN}-> Calculating Performance Points for all users in all gamemodes.{ENDC}')
+def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
+    print(f'{CYAN}-> Calculating Users Total Performance Points for all users in all gamemodes.{ENDC}')
     t_start = time.time()
 
     for relax in range(2):
         print(f'Calculating {"Relax" if relax else "Vanilla"}.')
         for gamemode in ['std', 'taiko', 'ctb', 'mania']:
-            print(f'Mode: {gamemode}')
+            print(f'    Mode: {gamemode}')
+
+            if relax and gamemode == "mania":
+                continue
 
             SQL.execute('SELECT id FROM users WHERE privileges & 1 and id != 999;')
             for row in SQL.fetchall():
@@ -118,8 +121,7 @@ def calculatePP(): # Calculate PPs based off users score db.
                     print(f"    Calculate Done. UID[{userID}] {YELLOW}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
                 elif (NEWPP - BEFORE_PP) < 0:
                     print(f"    Calculate Done. UID[{userID}] {RED}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
-                else:
-                    print(f"    Calculate Done. UID[{userID}] {BEFORE_PP}pp => {NEWPP}pp")
+
     print(f'{GREEN}-> Successfully completed Performance points calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     return True
 
@@ -135,7 +137,7 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
     for relax in range(2):
         print(f'Calculating {"Relax" if relax else "Vanilla"}.')
         for gamemode in ['std', 'taiko', 'ctb', 'mania']:
-            print(f'Mode: {gamemode}')
+            print(f'    Mode: {gamemode}')
 
             if relax:
                 SQL.execute('SELECT rx_stats.id, rx_stats.pp_{gm}, rx_stats.country, users.latest_activity FROM rx_stats LEFT JOIN users ON users.id = rx_stats.id WHERE rx_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
@@ -276,7 +278,7 @@ if __name__ == '__main__':
     print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nDebian Forked that osu!thailand fork Akatsuki. SO..... it is forkforked LUL :D SRY.")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
-    if calculatePP(): print()
+    if calculateUserTotalPP(): print()
     if calculateRanks(): print()   
     if updateTotalScores(): print()    
     if removeExpiredDonorTags(): print()   

@@ -87,14 +87,9 @@ def calculatePP(): # Calculate PPs based off users score db.
         for gamemode in ['std', 'taiko', 'ctb', 'mania']:
             print(f'Mode: {gamemode}')
 
-            SQL.execute('SELECT id, latest_activity FROM users WHERE privileges & 1 and id != 999;')
-            currentTime = int(time.time())
+            SQL.execute('SELECT id FROM users WHERE privileges & 1 and id != 999;')
             for row in SQL.fetchall():
                 userID = int(row[0])
-                daysInactive = (currentTime - int(row[1])) / 60 / 60 / 24
-                
-                if daysInactive > 60:
-                    continue
                 
                 m = convertMode(gamemode)
                 sql = "select sum(ROUND(ROUND(DD.pp) * pow(0.95,  (@num1 := @num1+1)))) as pp from( SELECT userid,pp,(curdate() - interval 60 day) as time FROM scores"
@@ -121,6 +116,8 @@ def calculatePP(): # Calculate PPs based off users score db.
 
                 if (NEWPP - BEFORE_PP) > 0:
                     print(f"    Calculate Done. UID[{userID}] {YELLOW}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
+                elif (NEWPP - BEFORE_PP) < 0:
+                    print(f"    Calculate Done. UID[{userID}] {RED}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
                 else:
                     print(f"    Calculate Done. UID[{userID}] {BEFORE_PP}pp => {NEWPP}pp")
     print(f'{GREEN}-> Successfully completed Performance points calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')

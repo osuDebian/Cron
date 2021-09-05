@@ -59,10 +59,11 @@ else:
 if not SQL: raise Exception('Could not connect to SQL.')
 
 # Redis
+r = None
 if len(REDIS_PASS) < 1:
-    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=int(REDIS_DB))
 else:
-    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, password=REDIS_PASS)
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=int(REDIS_DB), password=REDIS_PASS)
 
 
 def convertMode(mode):
@@ -76,6 +77,12 @@ def convertMode(mode):
         return 3
     else:
         return 0
+
+def deleteLeaderboardKeys():
+    print('Deleting leaderboard keys in redis')
+    for key in r.scan_iter("ripple:leaderboard*:*"):
+        r.delete(key)
+    return True
 
 
 def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
@@ -125,14 +132,14 @@ def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
     print(f'{GREEN}-> Successfully completed Performance points calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     return True
 
+
 def calculateRanks(): # Calculate hanayo ranks based off db pp values.
     print(f'{CYAN}-> Calculating ranks for all users in all gamemodes.{ENDC}')
     t_start = time.time()
 
-    # do not flush as it'll break "Online Users" on hanayo.
-    # r.flushall() # Flush current set (removes restricted players).
-    r.delete(r.keys("ripple:leaderboard:*"))
-    r.delete(r.keys("ripple:relaxboard:*"))
+    deletekey = deleteLeaderboardKeys()
+    if not deletekey:
+        return False
 
     for relax in range(2):
         print(f'Calculating {"Relax" if relax else "Vanilla"}.')
@@ -140,19 +147,14 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
             print(f'    Mode: {gamemode}')
 
             if relax:
-                SQL.execute('SELECT rx_stats.id, rx_stats.pp_{gm}, rx_stats.country, users.latest_activity FROM rx_stats LEFT JOIN users ON users.id = rx_stats.id WHERE rx_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
+                SQL.execute('SELECT rx_stats.id, rx_stats.pp_{gm}, rx_stats.country FROM rx_stats LEFT JOIN users ON users.id = rx_stats.id WHERE rx_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
             else:
-                SQL.execute('SELECT users_stats.id, users_stats.pp_{gm}, users_stats.country, users.latest_activity FROM users_stats LEFT JOIN users ON users.id = users_stats.id WHERE users_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
+                SQL.execute('SELECT users_stats.id, users_stats.pp_{gm}, users_stats.country FROM users_stats LEFT JOIN users ON users.id = users_stats.id WHERE users_stats.pp_{gm} > 0 AND users.privileges & 1 ORDER BY pp_{gm} DESC'.format(gm=gamemode))
 
-            currentTime = int(time.time())
             for row in SQL.fetchall():
                 userID       = int(row[0])
                 pp           = float(row[1])
                 country      = row[2].lower()
-                daysInactive = (currentTime - int(row[3])) / 60 / 60 / 24
-                
-                if daysInactive > 60:
-                    continue
 
                 if relax:
                     r.zadd(f'ripple:leaderboard_relax:{gamemode}', userID, pp)
@@ -284,5 +286,6 @@ if __name__ == '__main__':
     if removeExpiredDonorTags(): print()   
     if addSupporterBadges(): print()   
     if intensive and calculateScorePlaycount(): print()
+
 
     print(f'{GREEN}-> Cronjob execution completed.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')

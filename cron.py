@@ -4,6 +4,8 @@ from mysql.connector import errorcode
 import time
 import os
 import sys
+from discord_webhook import DiscordWebhook, DiscordEmbed
+import threading
 
 # Akatsuki-cron-py version number.
 VERSION = 1.29
@@ -16,7 +18,7 @@ GREEN 		= '\033[92m'
 RED 		= '\033[91m'
 ENDC 		= '\033[0m'
 
-SQL_HOST, SQL_USER, SQL_PASS, SQL_DB, REDIS_HOST, REDIS_PORT, REDIS_PASS, REDIS_DB = [None] * 8
+SQL_HOST, SQL_USER, SQL_PASS, SQL_DB, REDIS_HOST, REDIS_PORT, REDIS_PASS, REDIS_DB, DISCORD_WEBHOOK, SCHEDULE_INTERVAL_MINUTE = [None] * 10
 with open(f'{os.path.dirname(os.path.realpath(__file__))}/config.ini', 'r') as f:
     conf_data = f.read().splitlines()
 
@@ -34,9 +36,11 @@ for _line in conf_data:
     elif key == 'REDIS_PORT': REDIS_PORT = val # Port for REDIS.
     elif key == 'REDIS_PASS': REDIS_PASS = val # Password for REDIS.
     elif key == 'REDIS_DB': REDIS_DB = val # DB id for REDIS.
+    elif key == 'DISCORD_WEBHOOK': DISCORD_WEBHOOK = val # DISCORD WEBHOOK URL
+    elif key == 'SCHEDULE_INTERVAL_MINUTE': SCHEDULE_INTERVAL_MINUTE = val
 
-if any(not i for i in [SQL_HOST, SQL_USER, SQL_PASS, SQL_DB]):
-    raise Exception('Not all required configuration values could be found (SQL_HOST, SQL_USER, SQL_PASS, SQL_DB).')
+if any(not i for i in [SQL_HOST, SQL_USER, SQL_PASS, SQL_DB, REDIS_HOST, REDIS_PORT, REDIS_PASS, REDIS_DB, SCHEDULE_INTERVAL_MINUTE]):
+    raise Exception('Not all required configuration values could be found (SQL_HOST, SQL_USER, SQL_PASS, SQL_DB, REDIS_HOST, REDIS_PORT, REDIS_PASS, REDIS_DB, SCHEDULE_INTERVAL_MINUTE).')
 
 try:
     cnx = mysql.connector.connect(
@@ -65,6 +69,18 @@ else:
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=int(REDIS_DB), password=REDIS_PASS)
 
 
+def sendWebhooks(title=None, description=None, color=None, fields=None):
+    webhook = DiscordWebhook(url=DISCORD_WEBHOOK, username="Cron Job")
+    embed = DiscordEmbed(title=title, description=description, color=color)
+    embed.set_footer(text='Cron Job Logs')
+    embed.set_timestamp()
+    if fields != None:
+        for i in fields:
+            embed.add_embed_field(name=i['name'], value=i['value'], inline=i['inline'])
+    webhook.add_embed(embed)
+    response = webhook.execute()
+    print("webhook send!")
+
 def convertMode(mode):
     if mode == "std":
         return 0
@@ -87,6 +103,8 @@ def deleteLeaderboardKeys():
 def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
     print(f'{CYAN}-> Calculating Users Total Performance Points for all users in all gamemodes.{ENDC}')
     t_start = time.time()
+    Webhook_fields = []
+    vanilla_w, relax_w = "----\n", "----\n"
 
     for relax in range(2):
         print(f'Calculating {"Relax" if relax else "Vanilla"}.')
@@ -121,14 +139,20 @@ def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
                     SQL.execute(f"select pp_{gamemode} from users_stats where id = {userID}")
                 BEFORE_PP = SQL.fetchone()[0]
 
-                SQL.execute(sql_update)
-
                 if (NEWPP - BEFORE_PP) > 0:
                     print(f"    Calculate Done. UID[{userID}] {YELLOW}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
                 elif (NEWPP - BEFORE_PP) < 0:
                     print(f"    Calculate Done. UID[{userID}] {RED}{BEFORE_PP}pp => {NEWPP}pp{ENDC}")
-
+                if (NEWPP - BEFORE_PP) > 0 or (NEWPP - BEFORE_PP) < 0:
+                    if relax:
+                        relax_w += f"    {gamemode} | {userID} | {BEFORE_PP}pp => {NEWPP}pp\n"
+                    vanilla_w += f"    {gamemode} | {userID} | {BEFORE_PP}pp => {NEWPP}pp\n"
+                    SQL.execute(sql_update)
+            print(f'        {gamemode} Done.')
+    Webhook_fields.append({"name": "Vanilla", "value": vanilla_w, "inline": False})
+    Webhook_fields.append({"name": "Relax", "value": relax_w, "inline": False})
     print(f'{GREEN}-> Successfully completed Performance points calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks('Successfully completed Performance points calculations.', f'running time: {time.time() - t_start:.2f} seconds.', '6BD089', Webhook_fields)
     return True
 
 
@@ -167,6 +191,7 @@ def calculateRanks(): # Calculate hanayo ranks based off db pp values.
                     r.zadd(f'ripple:leaderboard:{gamemode}:{country}', userID, pp)
 
     print(f'{GREEN}-> Successfully completed rank calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks('Successfully completed rank calculations.', f'running time: {time.time() - t_start:.2f} seconds.', '007AAE')
     return True
 
 
@@ -183,13 +208,15 @@ def updateTotalScores(): # Update the main page values for total scores.
     r.set('ripple:submitted_scores_relax', f'{SQL.fetchone()[0] / 1000000:.2f}m')
 
     print(f'{GREEN}-> Successfully completed updating total score values.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks('Successfully completed updating total score values.', f'running time: {time.time() - t_start:.2f} seconds.', 'D249D4')
     return True
 
 
 def removeExpiredDonorTags(): # Remove supporter tags from users who no longer have them owo.
     print(f'{CYAN}-> Cleaning expired donation perks and badges.{ENDC}')
     t_start = time.time()
-
+    Webhook_fields = []
+    users_W = "-----\n"
     SQL.execute('SELECT id, username, privileges FROM users WHERE privileges & 4 AND donor_expire < %s', [int(time.time())])
     expired_donors = SQL.fetchall()
 
@@ -197,6 +224,7 @@ def removeExpiredDonorTags(): # Remove supporter tags from users who no longer h
         donor_type = user[2] & 8388608
 
         print(f"Removing {user[1]}'{'s' if user[1][-1] != 's' else ''} expired Supporter tag.")
+        users_W += f"{user[1]}\n"
 
         SQL.execute('UPDATE users SET privileges = privileges - 4 WHERE id = %s', [user[0]])
 
@@ -212,8 +240,9 @@ def removeExpiredDonorTags(): # Remove supporter tags from users who no longer h
 
     # Wipe expired badges.
     SQL.execute('DELETE user_badges FROM user_badges LEFT JOIN users ON user_badges.user = users.id WHERE user_badges.badge in (100) AND users.donor_expire < %s', [int(time.time())])
-
+    Webhook_fields.append({"name": "Removed Suppor tag List", "value": users_W, "inline": False})
     print(f'{GREEN}-> Successfully cleaned {len(expired_donors)} expired donor tags and {expired_badges} expired badges.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks(f'Successfully cleaned {len(expired_donors)} expired donor tags and {expired_badges} expired badges.', f'running time: {time.time() - t_start:.2f} seconds.', 'F47378', Webhook_fields)
     return True
 
 
@@ -223,6 +252,7 @@ def addSupporterBadges(): # This is retarded please cmyui do this properly in th
 
     SQL.execute('UPDATE users_stats LEFT JOIN users ON users_stats.id = users.id SET users_stats.can_custom_badge = 1, users_stats.show_custom_badge = 1 WHERE users.donor_expire > %s', [int(time.time())])
     print(f'{GREEN}-> Donation badges added to users.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks(f'Donation badges added to users.', f'running time: {time.time() - t_start:.2f} seconds.', '73EDF4')
     return True
 
 
@@ -272,19 +302,28 @@ def calculateScorePlaycount():
                             )
 
     print(f'{GREEN}-> Successfully completed score and playcount calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks(f'Successfully completed score and playcount calculations.', f'running time: {time.time() - t_start:.2f} seconds.', 'B9D821')
     return True
 
-
-if __name__ == '__main__':
-    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nDebian Forked that osu!thailand fork Akatsuki. SO..... it is forkforked LUL :D SRY.")
+def running_cron():
+    print(f"{CYAN}CronJob has been started.{ENDC}")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
-    if calculateUserTotalPP(): print()
+    now = time.localtime()
+    now_str = f'{now.tm_year}/{now.tm_mon}/{now.tm_mday} {now.tm_hour}:{now.tm_min}:{now.tm_sec}'
+    sendWebhooks(f'Cronjob has been stated.', now_str, '2139D8')
+    if calculateUserTotalPP():print()
     if calculateRanks(): print()   
     if updateTotalScores(): print()    
     if removeExpiredDonorTags(): print()   
     if addSupporterBadges(): print()   
     if intensive and calculateScorePlaycount(): print()
 
-
     print(f'{GREEN}-> Cronjob execution completed.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
+    sendWebhooks(f'Cronjob execution completed.', f"running time: {time.time() - t_start:.2f} seconds.", '2139D8')
+
+    threading.Timer((int(SCHEDULE_INTERVAL_MINUTE) * 60) * 60, running_cron).start()
+
+if __name__ == '__main__':
+    print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nDebian Forked that osu!thailand fork Akatsuki. SO..... it is forkforked LUL :D SRY.")
+    running_cron()

@@ -1,4 +1,4 @@
 redis
 mysql-connector
 discord-webhook
-schedule
+threading

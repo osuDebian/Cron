@@ -70,7 +70,14 @@ else:
 
 
 def sendWebhooks(title=None, description=None, color=None, fields=None):
-    webhook = DiscordWebhook(url=DISCORD_WEBHOOK, username="Cron Job")
+    WEBHOOK_URL = []
+    if len(DISCORD_WEBHOOK.split(",")) > 1:
+        for url in DISCORD_WEBHOOK.split(","):
+            url = url.replace(" ", "")
+            WEBHOOK_URL.append(url)
+    else:
+        WEBHOOK_URL.append(DISCORD_WEBHOOK)
+    webhook = DiscordWebhook(url=WEBHOOK_URL, username="Cron Job")
     embed = DiscordEmbed(title=title, description=description, color=color)
     embed.set_footer(text='Cron Job Logs')
     embed.set_timestamp()
@@ -277,7 +284,7 @@ def calculateScorePlaycount():
                 # .format sql queries hahahahah fuck you i don't care
                 SQL.execute('''SELECT scores{ainu_mode}.score, scores{ainu_mode}.completed, beatmaps.ranked
                                FROM scores{ainu_mode}
-                               LEFT JOIN beatmaps ON scores{ainu_mode}.beatmap_md5 = beatmaps.beatmap_md5
+                               LEFT JOIN beatmaps ON scores{ainu_mode}.beatmap_id = beatmaps.beatmap_id
                                WHERE
                                 scores{ainu_mode}.userid = %s AND
                                 scores{ainu_mode}.play_mode = {game_mode}
@@ -306,7 +313,7 @@ def calculateScorePlaycount():
     return True
 
 def running_cron():
-    print(f"{CYAN}CronJob has been started.{ENDC}")
+    print(f"{CYAN}Cronjob has been started.{ENDC}")
     intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
     now = time.localtime()
@@ -322,7 +329,7 @@ def running_cron():
     print(f'{GREEN}-> Cronjob execution completed.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     sendWebhooks(f'Cronjob execution completed.', f"running time: {time.time() - t_start:.2f} seconds.", '2139D8')
 
-    threading.Timer((int(SCHEDULE_INTERVAL_MINUTE) * 60) * 60, running_cron).start()
+    threading.Timer((int(SCHEDULE_INTERVAL_MINUTE) * 60), running_cron).start()
 
 if __name__ == '__main__':
     print(f"{CYAN}Akatsuki's cron - v{VERSION}.{ENDC}\nDebian Forked that osu!thailand fork Akatsuki. SO..... it is forkforked LUL :D SRY.")

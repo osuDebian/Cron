@@ -153,7 +153,8 @@ def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
                 if (NEWPP - BEFORE_PP) > 0 or (NEWPP - BEFORE_PP) < 0:
                     if relax:
                         relax_w += f"    {gamemode} | {userID} | {BEFORE_PP}pp => {NEWPP}pp\n"
-                    vanilla_w += f"    {gamemode} | {userID} | {BEFORE_PP}pp => {NEWPP}pp\n"
+                    else:
+                        vanilla_w += f"    {gamemode} | {userID} | {BEFORE_PP}pp => {NEWPP}pp\n"
                     SQL.execute(sql_update)
             print(f'        {gamemode} Done.')
     Webhook_fields.append({"name": "Vanilla", "value": vanilla_w, "inline": False})
@@ -307,6 +308,7 @@ def calculateScorePlaycount():
                                    game_mode=game_mode[0]
                                 ), [total_score, ranked_score, playcount, user[0]]
                             )
+                print(f'    {"Relax" if ainu_mode[1] else "Vanilla"} | {game_mode[0]} | {user[0]} | total_score: {total_score}, ranked_score: {ranked_score}, play_count: {playcount}')
 
     print(f'{GREEN}-> Successfully completed score and playcount calculations.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     sendWebhooks(f'Successfully completed score and playcount calculations.', f'running time: {time.time() - t_start:.2f} seconds.', 'B9D821')
@@ -314,7 +316,6 @@ def calculateScorePlaycount():
 
 def running_cron():
     print(f"{CYAN}Cronjob has been started.{ENDC}")
-    intensive = len(sys.argv) > 1 and any(sys.argv[1].startswith(x) for x in ['t', 'y', '1'])
     t_start = time.time()
     now = time.localtime()
     now_str = f'{now.tm_year}/{now.tm_mon}/{now.tm_mday} {now.tm_hour}:{now.tm_min}:{now.tm_sec}'
@@ -324,7 +325,7 @@ def running_cron():
     if updateTotalScores(): print()    
     if removeExpiredDonorTags(): print()   
     if addSupporterBadges(): print()   
-    if intensive and calculateScorePlaycount(): print()
+    if calculateScorePlaycount(): print()
 
     print(f'{GREEN}-> Cronjob execution completed.\n{MAGENTA}Time: {time.time() - t_start:.2f} seconds.{ENDC}')
     sendWebhooks(f'Cronjob execution completed.', f"running time: {time.time() - t_start:.2f} seconds.", '2139D8')

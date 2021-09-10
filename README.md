@@ -9,6 +9,9 @@ The cron job write by Python. Based on Akatsuki's cron job and adjusted somethin
 + Remove expired donor badges
 + Add donor badges
 + Calculate user total playcount
++ Send the progress of Cron Job to discord webbook
++ Multiple send webhooks support
++ Schedule System
 
 
 ## Setup
@@ -23,10 +26,17 @@ $ nano config.ini
 ```
 Then you can go ahead and change the needed stuff in there.
 
+If you want to send webhooks to multiple, you can add `, `   between webhook urls in config file.
+```
+ex) DISCORD_WEBHOOK = https://discord.com/api/webhooks/123456/QWEQWE, https://discord.com/api/webhooks/456456/ASDASD
+```
+
+
 And the last thing you have to do, is running the cron job
 ```
 $ python3 cron.py
 ```
+
 If there's any issues during setup and runninng the cron job, feel free to post an issue <3
 
 ## Original Repo

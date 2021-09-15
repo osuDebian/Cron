@@ -126,10 +126,10 @@ def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
                 userID = int(row[0])
                 
                 m = convertMode(gamemode)
-                sql = "select sum(ROUND(ROUND(DD.pp) * pow(0.95,  (@num1 := @num1+1)))) as pp from( SELECT userid,pp,(curdate() - interval 60 day) as time FROM scores"
+                sql = "select sum(ROUND(ROUND(DD.pp) * pow(0.95,  (DD.RANKING-1)))) as pp from(SELECT ROW_NUMBER() OVER(ORDER BY pp DESC) AS RANKING, userid,pp FROM Ainu.scores"
                 if relax:
                     sql += "_relax"
-                sql += f" LEFT JOIN(beatmaps) USING(beatmap_id) WHERE userid = {userID} AND play_mode = {m} AND completed = 3 AND ranked >= 2 ORDER BY pp DESC LIMIT 500 ) as DD, (select @num1 := -1) TMP1;"
+                sql += f" WHERE beatmap_id in (select beatmap_id from  Ainu.beatmaps where ranked >= 2) AND userid = {userID} AND play_mode = {m} AND completed = 3 LIMIT 500) as DD;"
 
                 SQL.execute(sql)
                 NEWPP = SQL.fetchone()[0]
@@ -156,6 +156,7 @@ def calculateUserTotalPP(): # Calculate Users Total PP based off users score db.
                     else:
                         vanilla_w += f"    {gamemode} | {userID} | {BEFORE_PP}pp => {NEWPP}pp\n"
                     SQL.execute(sql_update)
+                time.sleep(0.5)
             print(f'        {gamemode} Done.')
     Webhook_fields.append({"name": "Vanilla", "value": vanilla_w, "inline": False})
     Webhook_fields.append({"name": "Relax", "value": relax_w, "inline": False})
